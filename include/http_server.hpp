@@ -11,7 +11,6 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #define FD_MAX_NUM 10000
-#define SERVER_PORT 8000
 
 using namespace std;
 
@@ -34,7 +33,7 @@ void do_read(int fd_client, int fd_epoll);
 
 void del_node(int fd_client, int fd_epoll);
 
-int get_line(int sock, string buff, int size);
+int get_line(int sock, char *buff, int size);
 
 void send_file(int fd_client, const char *filename);
 

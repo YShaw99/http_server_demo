@@ -51,12 +51,10 @@ void hs::epoll_run(int port) {
   //处理请求
   while (1) {
 
-    cout << "阻塞等待epoll wait" << endl;
     int res = epoll_wait(fd_epoll, event_nodes, FD_MAX_NUM, 500);
     if (res == -1) {
       exit_error("epoll wait error!");
     }
-
     //处理每个类型请求
     //待改善功能：目前只处理连接&读
     for (int i = 0; i < res; i++) {
@@ -68,12 +66,8 @@ void hs::epoll_run(int port) {
       }
 
       if (event->data.fd == fd_listen) {
-
-        cout << "处理连接" << endl;
         do_accept(fd_listen, fd_epoll); //处理连接
       } else {
-
-        cout << "读取数据" << endl;
         do_read(event->data.fd, fd_epoll); //读取数据
       }
     }
@@ -93,7 +87,7 @@ int hs::init_listen_fd(int port, int fd_epoll) {
   memset(&addr_server, 0, sizeof(sockaddr_in));
 
   addr_server.sin_family = AF_INET;
-  addr_server.sin_port = port;
+  addr_server.sin_port = htons(port);
   addr_server.sin_addr.s_addr = htonl(INADDR_ANY);
 
   //端口复用
@@ -121,7 +115,7 @@ int hs::init_listen_fd(int port, int fd_epoll) {
   if (res == -1) {
     exit_error("listen error");
   }
-
+  cout << "init success" << fd_listen << " " << res << endl;
   return fd_listen;
 }
 
@@ -188,18 +182,22 @@ void hs::del_node(int fd_client, int fd_epoll) {
 void hs::do_read(int fd_client, int fd_epoll) {
   char line[1024] = {0};
   int len = get_line(fd_client, line, sizeof(line));
-  if (strlen(line) == 0) {
+  if (len == 0) {
+    cout << "----------del----------" << endl;
     del_node(fd_client, fd_epoll);
   } else {
     cout << "----------请求头----------" << endl;
+    cout << "----------请求行----------" << line << endl;
     // ET模式循环读取
     while (1) {
+
       char buff[1024] = {0};
       len = get_line(fd_client, buff, sizeof(buff));
 
-      if (buff[0] == '\n' || len == -1) {
+      if ((buff[0] == '\n') || (len == -1)) {
         break;
       }
+      cout << buff << endl;
     }
     cout << "---------- End ----------" << endl;
   }
@@ -207,17 +205,19 @@ void hs::do_read(int fd_client, int fd_epoll) {
   if (strncasecmp("get", line, 3) == 0) {
     http_request(line, fd_client);
 
+    cout << "----------request----------" << endl;
     del_node(fd_client, fd_epoll);
   }
 }
 
 ///-??
-int hs::get_line(int sock, string buff, int size) {
+int hs::get_line(int sock, char *buff, int size) {
   int i = 0;
   char c = '\0';
   int n;
   while ((i < size - 1) && (c != '\n')) {
     n = recv(sock, &c, 1, 0);
+
     if (n > 0) {
       if (c == '\r') {
         buff[i] = c;
@@ -330,6 +330,8 @@ void hs::send_respond_head(int fd_client, int no, const char *desp,
   //消息报头
   sprintf(buff, "Content-Type:%s\r\n", type);
   sprintf(buff + strlen(buff), "Content-Length:%ld\r\n", len);
+  send(fd_client, buff, strlen(buff), 0);
+
   //空行
   send(fd_client, "\r\n", 2, 0);
 }
