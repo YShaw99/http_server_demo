@@ -3,7 +3,7 @@
 using namespace std;
 #define SERVER_PORT 8000
 int main() {
-  chdir("~/");
+  chdir("./");
   hs::epoll_run(SERVER_PORT);
   return 0;
 }

@@ -10,22 +10,23 @@ void hs::send_error(int fd_client, int status, const char *title,
 
   char buff[4096] = {0};
 
-  sprintf(buff, "%s%d%s\r\n", "HTTP/1.1", status, title);
+  sprintf(buff, "HTTP/1.1 %d %s\r\n", status, title);
   sprintf(buff + strlen(buff), "Content-Type:%s\r\n", "text/html");
   sprintf(buff + strlen(buff), "Content-Length:%d\r\n", -1);
   sprintf(buff + strlen(buff), "Connection: close\r\n");
 
+  cout << "send :" << buff << endl;
   send(fd_client, buff, strlen(buff), 0);
-  send(fd_client, "\r", 2, 0);
+  send(fd_client, "\r\n", 2, 0);
 
   memset(buff, 0, sizeof(buff));
 
   sprintf(buff, "<html><head><title>%d %s</title></head>", status, title);
   sprintf(buff + strlen(buff),
-          "<body bgcolor=\"#AAAA00\"><h2 align=\"center\">%d %s</h2>\n", //
+          "<h2 align=\"center\">%d %s</h2>\n", //
           status, title);
   sprintf(buff + strlen(buff), "%s\n", text);
-  sprintf(buff + strlen(buff), "<hr>\n</body>\n</html>\n");
+  sprintf(buff + strlen(buff), "\n</body>\n</html>\n");
 
   send(fd_client, buff, strlen(buff), 0);
 }
@@ -115,7 +116,7 @@ int hs::init_listen_fd(int port, int fd_epoll) {
   if (res == -1) {
     exit_error("listen error");
   }
-  cout << "init success" << fd_listen << " " << res << endl;
+  cout << "init success ,listen fd:" << fd_listen << endl;
   return fd_listen;
 }
 
@@ -173,6 +174,7 @@ void hs::del_node(int fd_client, int fd_epoll) {
     sprintf(info, " del error, client fd:%d", fd_client);
     exit_error(string(info));
   } else {
+    cout << "close client fd:" << fd_client << endl;
     close(fd_client);
     ///-/cout << m[fd_client].first << ":" << m[fd_client].second << "exit";
     ///-/m.erase(fd_client);
@@ -183,11 +185,10 @@ void hs::do_read(int fd_client, int fd_epoll) {
   char line[1024] = {0};
   int len = get_line(fd_client, line, sizeof(line));
   if (len == 0) {
-    cout << "----------del----------" << endl;
     del_node(fd_client, fd_epoll);
   } else {
     cout << "----------请求头----------" << endl;
-    cout << "----------请求行----------" << line << endl;
+    cout << "请求行:" << line << endl;
     // ET模式循环读取
     while (1) {
 
@@ -205,7 +206,6 @@ void hs::do_read(int fd_client, int fd_epoll) {
   if (strncasecmp("get", line, 3) == 0) {
     http_request(line, fd_client);
 
-    cout << "----------request----------" << endl;
     del_node(fd_client, fd_epoll);
   }
 }
@@ -297,7 +297,6 @@ const char *hs::get_file_type(char *filename) {
 
 ///-/*
 void hs::http_request(const char *request, int fd_client) {
-
   //拆分http请求行
   char method[12], path[1024], protocol[12];
   sscanf(request, "%[^ ] %[^ ] %[^ ] ", method, path, protocol);
@@ -307,9 +306,12 @@ void hs::http_request(const char *request, int fd_client) {
   struct stat st; //要加上struct!
   int res = stat(file, &st);
   if (res == -1) {
+    cout << "404 error" << endl;
     send_error(fd_client, 404, "Not Found", "No such file or direntry");
     return;
   }
+
+  cout << "request:" << method << " " << path << " " << protocol << endl;
 
   //如果请求的是文件
   if (S_ISREG(st.st_mode)) {
@@ -320,17 +322,20 @@ void hs::http_request(const char *request, int fd_client) {
     send_file(fd_client, file);
   }
 }
+
 ///-/*
 void hs::send_respond_head(int fd_client, int no, const char *desp,
                            const char *type, long len) {
   char buff[1024] = {0};
   //状态行
   sprintf(buff, "http/1.1 %d %s\r\n", no, desp);
+  cout << "状态行 " << buff << endl;
   send(fd_client, buff, strlen(buff), 0);
   //消息报头
   sprintf(buff, "Content-Type:%s\r\n", type);
   sprintf(buff + strlen(buff), "Content-Length:%ld\r\n", len);
   send(fd_client, buff, strlen(buff), 0);
+  cout << "消息报头 " << buff << endl;
 
   //空行
   send(fd_client, "\r\n", 2, 0);
